@@ -1,2 +1,2 @@
 #![expect(unused)] //TODO
-mod api;
+pub mod api;

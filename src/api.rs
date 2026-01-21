@@ -6,9 +6,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value as JsonValue;
 
 mod entries;
-mod login;
-
-const API_URL: &str = "webuntis.com/WebUntis/api/rest/view/v1";
+pub mod login;
 
 pub struct ApiClient {
     http_client: Client,
