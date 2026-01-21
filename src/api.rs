@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, bail};
-use reqwest::blocking::{Client as HttpClient, Response};
+use reqwest::blocking::{Client, Response};
 use reqwest::{IntoUrl, Method, StatusCode, Url};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -10,13 +10,13 @@ mod login;
 
 const API_URL: &str = "webuntis.com/WebUntis/api/rest/view/v1";
 
-pub struct Client {
-    http_client: HttpClient,
+pub struct ApiClient {
+    http_client: Client,
     token: String,
     base_url: Url,
 }
 
-impl Client {
+impl ApiClient {
     pub fn new(token: String, school: &str) -> Result<Self> {
         const TOKEN_CHARSET: &[u8; 64] =
             b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -36,7 +36,7 @@ impl Client {
             bail!("School contains invalid character(s)")
         }
 
-        let http_client = HttpClient::builder()
+        let http_client = Client::builder()
             .build()
             .context("Could not build HTTP client")?;
 

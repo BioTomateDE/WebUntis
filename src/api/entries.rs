@@ -4,7 +4,7 @@ use reqwest::Url;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 
-use crate::api::Client;
+use crate::api::ApiClient;
 
 const FORMAT_VERSION: i32 = 19;
 
@@ -131,7 +131,7 @@ enum RowType {
     Room,
 }
 
-impl Client {
+impl ApiClient {
     pub fn fetch_entries(
         &self,
         start: NaiveDate,
