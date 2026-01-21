@@ -1,0 +1,31 @@
+[package]
+name = "untis"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+base64 = { version = "0.22.1", default-features = false }
+
+[dependencies.anyhow]
+version = "1.0.100"
+default-features = false
+
+[dependencies.chrono]
+version = "0.4.43"
+default-features = false
+features = ["serde"]
+
+[dependencies.reqwest]
+version = "0.13.1"
+default-features = false
+features = ["blocking", "query"]
+
+[dependencies.serde]
+version = "1.0.228"
+default-features = false
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1.0.149"
+default-features = false
+features = ["std"]
