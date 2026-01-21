@@ -131,9 +131,12 @@ fn improve_json_error(err: serde_json::Error, json_string: &str) -> anyhow::Erro
     }
 
     let col = err.column();
-    let start = col.saturating_sub(50);
+    //let start = col.saturating_sub(50);
+    let start = col;
     let end = (col + 50).min(json_string.len());
+    let start_ell = if start == 0 { "" } else { "..." };
+    let end_ell = if end == json_string.len() { "" } else { "..." };
 
     let snippet = &json_string[start..end];
-    anyhow!("{err} | ...{snippet}...")
+    anyhow!("{err} | {start_ell}{snippet}{end_ell}")
 }
