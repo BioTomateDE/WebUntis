@@ -1,6 +1,5 @@
 use anyhow::{Result, bail};
 use chrono::{NaiveDate, NaiveDateTime};
-use reqwest::Url;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 

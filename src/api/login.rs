@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use reqwest::{
     Url,
     blocking::{Client, Response},
-    cookie::{Cookie, CookieStore, Jar},
+    cookie::Jar,
 };
 use serde::Serialize;
-use serde_json::json;
+
+use crate::api::ApiClient;
 
 #[derive(Serialize)]
 struct AuthRequest<'a> {
@@ -15,7 +16,7 @@ struct AuthRequest<'a> {
     j_password: &'a str,
 }
 
-pub fn request_new_token(username: &str, password: &str, school: &str) -> Result<String> {
+pub fn login(username: &str, password: &str, school: &str) -> Result<ApiClient> {
     let base_url: String = format!("https://{school}.webuntis.com/WebUntis/");
     let base_url =
         Url::parse(&base_url).with_context(|| format!("Could not parse URL {base_url:?}"))?;
@@ -51,5 +52,6 @@ pub fn request_new_token(username: &str, password: &str, school: &str) -> Result
         .context("Could not send request to token/new")?;
     let token: String =
         super::handle_response(resp).context("Bad response for token generation request")?;
-    Ok(token)
+
+    ApiClient::new(client, token, school)
 }

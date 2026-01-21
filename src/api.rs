@@ -1,42 +1,30 @@
+use std::collections::HashSet;
+
 use anyhow::{Context, Result, bail};
 use reqwest::blocking::{Client, Response};
-use reqwest::{IntoUrl, Method, StatusCode, Url};
+use reqwest::{StatusCode, Url};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
-use serde_json::Value as JsonValue;
 
 mod entries;
-pub mod login;
+mod login;
+
+pub use login::login;
 
 pub struct ApiClient {
     http_client: Client,
-    token: String,
+    pub token: String,
     base_url: Url,
 }
 
 impl ApiClient {
-    pub fn new(token: String, school: &str) -> Result<Self> {
-        const TOKEN_CHARSET: &[u8; 64] =
-            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    pub fn new(http_client: Client, token: String, school: &str) -> Result<Self> {
+        const TOKEN_CHARSET: &[u8; 65] =
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.";
         const SCHOOL_CHARSET: &[u8; 27] = b"abcdefghijklmnopqrstuvwxyz-";
 
-        if token.is_empty() {
-            bail!("Token is empty");
-        }
-        if !token.bytes().all(|b| TOKEN_CHARSET.contains(&b)) {
-            bail!("Token contains invalid character(s)");
-        }
-
-        if school.is_empty() {
-            bail!("School is empty");
-        }
-        if !school.bytes().all(|b| SCHOOL_CHARSET.contains(&b)) {
-            bail!("School contains invalid character(s)")
-        }
-
-        let http_client = Client::builder()
-            .build()
-            .context("Could not build HTTP client")?;
+        validate_charset("Token", &token, TOKEN_CHARSET)?;
+        validate_charset("School Name", school, SCHOOL_CHARSET)?;
 
         let base_url = format!("https://{school}.webuntis.com/WebUntis/api/rest/view/v1/");
         let base_url = Url::parse(&base_url)?;
@@ -49,8 +37,11 @@ impl ApiClient {
     }
 
     /// Sends a GET request to the relative URL with the given query parameters
-    fn get(&self, url: impl IntoUrl, query: &[(&str, &str)]) -> Result<String> {
-        let url: Url = url.into_url().context("Could not create URL")?;
+    fn get(&self, relative_url: &str, query: &[(&str, &str)]) -> Result<String> {
+        let url: Url = self
+            .base_url
+            .join(relative_url)
+            .context("Could not create URL")?;
         let ctx = || format!("Could not send GET request to {url}");
         let resp: Response = self
             .http_client
@@ -64,70 +55,15 @@ impl ApiClient {
     }
 
     /// Sends a GET request to the relative URL with the given query parameters
-    fn get_json<J>(&self, url: impl IntoUrl, query: &[(&str, &str)]) -> Result<J>
+    fn get_json<J>(&self, url: &str, query: &[(&str, &str)]) -> Result<J>
     where
         J: DeserializeOwned,
     {
-        let url: Url = url.into_url().context("Could not create URL")?;
-        let ctx = || format!("Could not send GET request to {url}");
-        let resp: Response = self
-            .http_client
-            .get(url.clone())
-            .bearer_auth(&self.token)
-            .query(query)
-            .send()
-            .with_context(ctx)?;
-        let text: String = handle_response(resp).with_context(ctx)?;
+        let text: String = self.get(url, query)?;
         let json: J = serde_json::from_str(&text).with_context(|| {
             format!("Could not extract JSON from success response from GET request to {url}")
         })?;
         Ok(json)
-    }
-
-    fn send_request<T: DeserializeOwned>(
-        &self,
-        method: Method,
-        url: impl IntoUrl,
-        query: &[(&str, &str)],
-        body: Option<JsonValue>,
-    ) -> Result<T> {
-        let url: Url = url.into_url().context("Could not create URL")?;
-
-        let resp: Response = self
-            .http_client
-            .request(method, url.clone())
-            .bearer_auth(&self.token)
-            .query(query)
-            .send()
-            .with_context(|| format!("Could not send GET request to {url}"))?;
-
-        let status: StatusCode = resp.status();
-        let text: String = resp.text().with_context(|| {
-            format!("Could not extract text from GET request to {url} with status {status}")
-        })?;
-
-        if status.is_success() {
-            let json: T = serde_json::from_str(&text).with_context(|| {
-                format!("Could not extract JSON from success response from GET request to {url}")
-            })?;
-            return Ok(json);
-        }
-
-        // Request was not successful
-        let message: String = if let Ok(json) = serde_json::from_str::<ErrorResponse>(&text) {
-            json.error_message.unwrap_or_else(|| {
-                json.validation_errors
-                    .into_iter()
-                    .map(|x| x.error_message)
-                    .collect::<Vec<_>>()
-                    .join(" | ")
-            })
-        } else {
-            // The request was so trash that serde could not even parse the json response
-            text
-        };
-
-        bail!("GET request to {url} failed with status {status}: {message}");
     }
 }
 
@@ -173,4 +109,19 @@ fn handle_response(response: Response) -> Result<String> {
     };
 
     bail!("Request failed with status {status}: {message}");
+}
+
+fn validate_charset(description: &'static str, string: &str, charset: &'static [u8]) -> Result<()> {
+    if string.is_empty() {
+        bail!("{description} is empty");
+    }
+    if string.bytes().all(|b| charset.contains(&b)) {
+        return Ok(());
+    }
+    let set = string
+        .bytes()
+        .filter(|b| !charset.contains(b))
+        .map(char::from)
+        .collect::<HashSet<char>>();
+    bail!("{description} contains invalid characters: {set:?}");
 }
