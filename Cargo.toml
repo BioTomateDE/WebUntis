@@ -3,9 +3,6 @@ name = "untis"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
-base64 = { version = "0.22.1", default-features = false }
-
 [dependencies.anyhow]
 version = "1.0.100"
 default-features = false
@@ -13,7 +10,7 @@ default-features = false
 [dependencies.chrono]
 version = "0.4.43"
 default-features = false
-features = ["serde"]
+features = ["now", "serde"]
 
 [dependencies.reqwest]
 version = "0.13.1"

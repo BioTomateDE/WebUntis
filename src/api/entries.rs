@@ -1,10 +1,11 @@
-use anyhow::{Result, bail};
-use chrono::{NaiveDate, NaiveDateTime};
+use anyhow::{Context, Result, bail};
+use chrono::{DateTime, Days, NaiveDate, NaiveDateTime, Timelike, Utc};
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 
 use crate::api::ApiClient;
 
+// The format version has a custom deserializer to catch errors early in case of format update.
 const FORMAT_VERSION: i32 = 19;
 
 #[derive(Debug)]
@@ -43,16 +44,21 @@ struct Duration {
 }
 
 #[derive(Debug, Deserialize)]
-struct Entries {
-    _version: FormatVersion,
-    days: [Day; 5],
+pub struct Entries {
+    #[expect(unused)]
+    format: FormatVersion,
+    #[serde(default)]
+    days: Vec<Day>,
+    #[serde(default)]
     errors: Vec<JsonValue>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Day {
     date: NaiveDate,
     status: String,
+    #[serde(default)]
     grid_entries: Vec<GridEntry>,
 }
 
@@ -67,18 +73,22 @@ struct GridEntry {
     /// Unstable
     name: JsonValue,
     notes_all: String,
-    position1: RowWrapper,
-    position2: RowWrapper,
-    position3: RowWrapper,
+    #[serde(default)]
+    position1: Vec<RowWrapper>,
+    #[serde(default)]
+    position2: Vec<RowWrapper>,
+    #[serde(default)]
+    position3: Vec<RowWrapper>,
+    #[serde(default)]
     texts: Vec<EntryText>,
-    lesson_text: String,
-    lesson_info: String,
-    substitution_text: String,
+    lesson_text: Option<String>,
+    lesson_info: Option<String>,
+    substitution_text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct RowWrapper {
-    current: Row,
+    current: Option<Row>,
     /// Unstable
     removed: JsonValue,
 }
@@ -87,47 +97,52 @@ struct RowWrapper {
 #[serde(rename_all = "camelCase")]
 struct Row {
     #[serde(rename = "type")]
-    row_type: RowType,
-    status: Status,
-    short_name: String,
-    long_name: String,
-    display_name: String,
+    row_type: Option<RowType>,
+    status: Option<Status>,
+    short_name: Option<String>,
+    long_name: Option<String>,
+    display_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct EntryText {
     #[serde(rename = "type")]
     text_type: EntryTextType,
-    text: String,
+    text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 enum EntryType {
     NormalTeachingPeriod,
     Event,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 enum Status {
+    NoData,
+    NotAllowed,
     Regular,
-    Cancelled,
+    Added,
     Changed,
+    Cancelled,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 enum EntryTextType {
     LessonInfo,
+    SubstitutionText,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 enum RowType {
     Subject,
     Teacher,
     Room,
+    Info,
 }
 
 impl ApiClient {
@@ -151,14 +166,25 @@ impl ApiClient {
             bail!("API returned errors: {:?}", entries.errors);
         }
 
-        for day in &entries.days {
-            println!("Day {:?} - {}", day.date, day.status);
-            for entry in &day.grid_entries {
-                //println!("  {:?} - {:?}", entry.duration, entry.entry_type, )
-                dbg!(entry);
-            }
-        }
+        // for day in &entries.days {
+        //     println!("Day {:?} - {}", day.date, day.status);
+        //     for entry in &day.grid_entries {
+        //         //println!("  {:?} - {:?}", entry.duration, entry.entry_type, )
+        //         dbg!(entry);
+        //     }
+        // }
 
         Ok(entries)
+    }
+
+    pub fn fetch_relevant_entry(&self, timetable_id: i32) -> Result<Entries> {
+        // NOTE: This will only behave properly for schools near GMT+0
+        let now: DateTime<Utc> = Utc::now();
+        let mut date: NaiveDate = now.date_naive();
+        if now.hour() >= 18 {
+            // After 18:00, show changes for tomorrow instead of today.
+            date = date.checked_add_days(Days::new(1)).unwrap();
+        }
+        self.fetch_entries(date, date, timetable_id)
     }
 }

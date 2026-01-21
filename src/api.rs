@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use reqwest::blocking::{Client, Response};
 use reqwest::{StatusCode, Url};
 use serde::Deserialize;
@@ -13,7 +13,7 @@ pub use login::login;
 
 pub struct ApiClient {
     http_client: Client,
-    pub token: String,
+    token: String,
     base_url: Url,
 }
 
@@ -60,9 +60,11 @@ impl ApiClient {
         J: DeserializeOwned,
     {
         let text: String = self.get(url, query)?;
-        let json: J = serde_json::from_str(&text).with_context(|| {
-            format!("Could not extract JSON from success response from GET request to {url}")
-        })?;
+        let json: J = serde_json::from_str(&text)
+            .map_err(|e| improve_json_error(e, &text))
+            .with_context(|| {
+                format!("Could not extract JSON from success response from GET request to {url}")
+            })?;
         Ok(json)
     }
 }
@@ -70,9 +72,6 @@ impl ApiClient {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ErrorResponse {
-    /// Technically an enum but idc
-    /// Probably corresponds to HTTP response reasons?
-    error_code: String,
     error_message: Option<String>,
     validation_errors: Vec<ValidationError>,
 }
@@ -80,7 +79,6 @@ struct ErrorResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ValidationError {
-    path: String,
     error_message: String,
 }
 
@@ -124,4 +122,18 @@ fn validate_charset(description: &'static str, string: &str, charset: &'static [
         .map(char::from)
         .collect::<HashSet<char>>();
     bail!("{description} contains invalid characters: {set:?}");
+}
+
+fn improve_json_error(err: serde_json::Error, json_string: &str) -> anyhow::Error {
+    if err.line() != 1 {
+        // Fallback if the JSON is not minified (for some reason)
+        return anyhow!("{err}");
+    }
+
+    let col = err.column();
+    let start = col.saturating_sub(50);
+    let end = (col + 50).min(json_string.len());
+
+    let snippet = &json_string[start..end];
+    anyhow!("{err} | ...{snippet}...")
 }
