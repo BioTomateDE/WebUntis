@@ -146,7 +146,7 @@ impl Client {
             ("format", &FORMAT_VERSION.to_string()),
         ];
 
-        let entries: Entries = self.send_get_request("timetable/entries", query)?;
+        let entries: Entries = self.get_json("timetable/entries", query)?;
 
         if !entries.errors.is_empty() {
             bail!("API returned errors: {:?}", entries.errors);

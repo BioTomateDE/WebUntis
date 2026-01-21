@@ -1,10 +1,12 @@
 use anyhow::{Context, Result, bail};
 use reqwest::blocking::{Client as HttpClient, Response};
-use reqwest::{StatusCode, Url};
+use reqwest::{IntoUrl, Method, StatusCode, Url};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde_json::Value as JsonValue;
 
 mod entries;
+mod login;
 
 const API_URL: &str = "webuntis.com/WebUntis/api/rest/view/v1";
 
@@ -48,19 +50,54 @@ impl Client {
         })
     }
 
-    fn send_get_request<T: DeserializeOwned>(
-        &self,
-        relative_url: &str,
-        query: &[(&str, &str)],
-    ) -> Result<T> {
-        let url: Url = self
-            .base_url
-            .join(relative_url)
-            .with_context(|| format!("Invalid URL for GET request: {relative_url:?}"))?;
-
+    /// Sends a GET request to the relative URL with the given query parameters
+    fn get(&self, url: impl IntoUrl, query: &[(&str, &str)]) -> Result<String> {
+        let url: Url = url.into_url().context("Could not create URL")?;
+        let ctx = || format!("Could not send GET request to {url}");
         let resp: Response = self
             .http_client
             .get(url.clone())
+            .bearer_auth(&self.token)
+            .query(query)
+            .send()
+            .with_context(ctx)?;
+        let text: String = handle_response(resp).with_context(ctx)?;
+        Ok(text)
+    }
+
+    /// Sends a GET request to the relative URL with the given query parameters
+    fn get_json<J>(&self, url: impl IntoUrl, query: &[(&str, &str)]) -> Result<J>
+    where
+        J: DeserializeOwned,
+    {
+        let url: Url = url.into_url().context("Could not create URL")?;
+        let ctx = || format!("Could not send GET request to {url}");
+        let resp: Response = self
+            .http_client
+            .get(url.clone())
+            .bearer_auth(&self.token)
+            .query(query)
+            .send()
+            .with_context(ctx)?;
+        let text: String = handle_response(resp).with_context(ctx)?;
+        let json: J = serde_json::from_str(&text).with_context(|| {
+            format!("Could not extract JSON from success response from GET request to {url}")
+        })?;
+        Ok(json)
+    }
+
+    fn send_request<T: DeserializeOwned>(
+        &self,
+        method: Method,
+        url: impl IntoUrl,
+        query: &[(&str, &str)],
+        body: Option<JsonValue>,
+    ) -> Result<T> {
+        let url: Url = url.into_url().context("Could not create URL")?;
+
+        let resp: Response = self
+            .http_client
+            .request(method, url.clone())
             .bearer_auth(&self.token)
             .query(query)
             .send()
@@ -111,4 +148,31 @@ struct ErrorResponse {
 struct ValidationError {
     path: String,
     error_message: String,
+}
+
+fn handle_response(response: Response) -> Result<String> {
+    let status: StatusCode = response.status();
+    let text: String = response
+        .text()
+        .with_context(|| format!("Could not extract text from response with status {status}"))?;
+
+    if status.is_success() {
+        return Ok(text);
+    }
+
+    // Request was not successful
+    let message: String = if let Ok(json) = serde_json::from_str::<ErrorResponse>(&text) {
+        json.error_message.unwrap_or_else(|| {
+            json.validation_errors
+                .into_iter()
+                .map(|x| x.error_message)
+                .collect::<Vec<_>>() // itertools is more efficient tbh
+                .join(" | ")
+        })
+    } else {
+        // The request was so trash that serde could not even parse the json response
+        text
+    };
+
+    bail!("Request failed with status {status}: {message}");
 }
