@@ -16,7 +16,18 @@ struct AuthRequest<'a> {
     j_password: &'a str,
 }
 
+/// Try to log into the Untis API as a student, acquiring a token used in the [`ApiClient`].
+///
+/// # Errors
+/// Possible failure reasons:
+/// * Invalid school name (subdomain)
+/// * Error sending HTTPS request
+/// * Invalid UTF-8 in response body
+/// * Response with non-success status code (not 2xx)
+///   > If your credentials are incorrect, it will return a HTTP redirect (302).
+/// * Invalid token
 pub fn login(username: &str, password: &str, school: &str) -> Result<ApiClient> {
+    // TODO: validate school name earlier  (now)
     let base_url: String = format!("https://{school}.webuntis.com/WebUntis/");
     let base_url =
         Url::parse(&base_url).with_context(|| format!("Could not parse URL {base_url:?}"))?;
@@ -36,7 +47,7 @@ pub fn login(username: &str, password: &str, school: &str) -> Result<ApiClient> 
     };
 
     let resp: Response = client
-        .post(url.clone())
+        .post(url)
         .header("Content-Type", "application/x-www-form-urlencoded") // lol
         .header("Accept", "application/json")
         .form(&body)
@@ -47,7 +58,7 @@ pub fn login(username: &str, password: &str, school: &str) -> Result<ApiClient> 
 
     let url = base_url.join("api/token/new")?;
     let resp: Response = client
-        .get(url.clone())
+        .get(url)
         .send()
         .context("Could not send request to token/new")?;
     let token: String =

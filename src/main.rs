@@ -1,6 +1,8 @@
+// TODO: remove this file (or make it actually usable) before publishing
+
 use anyhow::{Context, Result, ensure};
 use chrono::NaiveDate;
-use untis::api::{ApiClient, login};
+use webuntis::api::{ApiClient, login};
 
 fn main() -> Result<()> {
     println!("CHello, world!");

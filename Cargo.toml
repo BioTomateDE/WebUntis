@@ -1,7 +1,15 @@
 [package]
-name = "untis"
+name = "webuntis"
 version = "0.1.0"
+authors = ["BioTomateDE <latuskati+cratesio@gmail.com>"]
 edition = "2024"
+#rust-version = "insert msrv later"
+description = "Access to the internal Untis API for students"
+readme = "./README.md"
+repository = "https://github.com/BioTomateDE/WebUntis"
+license = "GPL-3.0-or-later"
+keywords = ["untis", "webuntis", "timetable", "student"]
+categories = ["api-bindings"]
 
 [dependencies.anyhow]
 version = "1.0.100"

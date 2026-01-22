@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use reqwest::blocking::{Client, Response};
 use reqwest::{StatusCode, Url};
 use serde::Deserialize;
@@ -11,6 +11,8 @@ mod login;
 
 pub use login::login;
 
+use crate::json_util::improve_json_error;
+
 pub struct ApiClient {
     http_client: Client,
     token: String,
@@ -18,6 +20,15 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
+    /// Create a new authorized Untis client that belongs to a specific student account.
+    ///
+    /// # Params
+    /// * `token`: base64 encoded string (`-_` specials, `.` for separator).
+    /// * `school`: lowercase school name (ascii only).
+    ///   this determines the `webuntis.com` subdomainn.
+    ///
+    /// # Errors
+    /// This function fails if the token or school name are malformed.
     pub fn new(http_client: Client, token: String, school: &str) -> Result<Self> {
         const TOKEN_CHARSET: &[u8; 65] =
             b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.";
@@ -61,7 +72,7 @@ impl ApiClient {
     {
         let text: String = self.get(url, query)?;
         let json: J = serde_json::from_str(&text)
-            .map_err(|e| improve_json_error(e, &text))
+            .map_err(|e| improve_json_error(&e, &text))
             .with_context(|| {
                 format!("Could not extract JSON from success response from GET request to {url}")
             })?;
@@ -122,21 +133,4 @@ fn validate_charset(description: &'static str, string: &str, charset: &'static [
         .map(char::from)
         .collect::<HashSet<char>>();
     bail!("{description} contains invalid characters: {set:?}");
-}
-
-fn improve_json_error(err: serde_json::Error, json_string: &str) -> anyhow::Error {
-    if err.line() != 1 {
-        // Fallback if the JSON is not minified (for some reason)
-        return anyhow!("{err}");
-    }
-
-    let col = err.column();
-    //let start = col.saturating_sub(50);
-    let start = col;
-    let end = (col + 50).min(json_string.len());
-    let start_ell = if start == 0 { "" } else { "..." };
-    let end_ell = if end == json_string.len() { "" } else { "..." };
-
-    let snippet = &json_string[start..end];
-    anyhow!("{err} | {start_ell}{snippet}{end_ell}")
 }
