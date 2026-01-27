@@ -70,9 +70,6 @@ impl ApiClient {
             handle_response(resp).context("Bad response for token generation request")?;
         validate::token(&token)?;
 
-        let base_url = format!("https://{school}.webuntis.com/WebUntis/api/rest/view/v1/");
-        let base_url = Url::parse(&base_url)?;
-
         let api_client = Self {
             http_client: client,
             token,
