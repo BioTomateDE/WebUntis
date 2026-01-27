@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::{Context, Result, bail};
+use chrono_tz::Tz;
 use reqwest::blocking::{Client, Response};
 use reqwest::{StatusCode, Url};
 use serde::Deserialize;
@@ -17,6 +18,7 @@ pub struct ApiClient {
     http_client: Client,
     token: String,
     base_url: Url,
+    timezone: Tz,
 }
 
 impl ApiClient {
@@ -44,6 +46,7 @@ impl ApiClient {
             http_client,
             token,
             base_url,
+            timezone: chrono_tz::UTC,
         })
     }
 

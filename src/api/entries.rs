@@ -2,6 +2,7 @@ mod row;
 
 use anyhow::{Result, bail};
 use chrono::{DateTime, Days, NaiveDate, NaiveDateTime, Timelike, Utc};
+use chrono_tz::Tz;
 use serde::{Deserialize, Deserializer};
 use serde_json::Value as JsonValue;
 
@@ -11,7 +12,7 @@ use crate::json_util::{parse_datetime, parse_string, parse_vec};
 // The format version has a custom deserializer to catch errors early in case of format update.
 const FORMAT_VERSION: i32 = 19;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct FormatVersion;
 
 impl<'de> Deserialize<'de> for FormatVersion {
@@ -29,7 +30,7 @@ impl<'de> Deserialize<'de> for FormatVersion {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Duration {
     #[serde(deserialize_with = "parse_datetime")]
     pub start: NaiveDateTime,
@@ -38,15 +39,15 @@ pub struct Duration {
     pub end: NaiveDateTime,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct Entries {
-    #[expect(unused)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct Entries {
+    #[allow(unused)]
     format: FormatVersion,
     days: Vec<Day>,
     errors: Vec<JsonValue>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Day {
     pub date: NaiveDate,
@@ -54,7 +55,7 @@ pub struct Day {
     pub grid_entries: Vec<GridEntry>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GridEntry {
     pub duration: Duration,
@@ -90,30 +91,13 @@ pub struct GridEntry {
     pub substitution_text: String,
 }
 
-// impl GridEntry {
-//     #[must_use]
-//     fn positions_wrapped(&self) -> Vec<&RowWrapper> {
-//         let mut rows: Vec<&RowWrapper> = Vec::with_capacity(3); // usually 3
-//         let mut handle = |pos: &Vec<RowWrapper>| {
-//             Ok(match pos.len() {
-//                 0 => {}
-//                 1 => rows.push(&pos[0]),
-//                 n => bail!("Position (row) unexpectedly has {n} items (not 0 or 1)"),
-//             })
-//         };
-//
-//         handle(&self.position1);
-//         rows
-//     }
-// }
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct RowWrapper {
     pub current: Option<Row>,
     pub removed: Option<Row>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Row {
     #[serde(rename = "type")]
@@ -132,14 +116,14 @@ pub struct Row {
     pub display_name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct EntryText {
     #[serde(rename = "type")]
     pub text_type: EntryTextType,
     pub text: String,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EntryType {
     NormalTeachingPeriod,
@@ -147,7 +131,7 @@ pub enum EntryType {
     Event,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Status {
     NoData,
@@ -166,7 +150,7 @@ impl Status {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EntryTextType {
     LessonInfo,
@@ -252,17 +236,18 @@ impl ApiClient {
     /// zero or more than one entry for whatever reason.
     #[expect(clippy::missing_panics_doc)]
     pub fn fetch_relevant_entry(&self, timetable_id: i32) -> Result<Day> {
-        // NOTE: This will only behave properly for schools near GMT+0
-        let now: DateTime<Utc> = Utc::now();
+        let now: DateTime<Tz> = Utc::now().with_timezone(&self.timezone);
         let mut date: NaiveDate = now.date_naive();
+
         if now.hour() >= 18 {
             // After 18:00, show changes for tomorrow instead of today.
             date = date.checked_add_days(Days::new(1)).unwrap();
         }
         let days = self.fetch_entries(date, date, timetable_id)?;
-        if days.len() != 1 {
-            bail!("API returned {} days instead of just one??", days.len());
+
+        match days.as_slice() {
+            [day] => Ok(day.clone()),
+            _ => bail!("API returned {} days instead of just one", days.len()),
         }
-        Ok(days.into_iter().next().unwrap())
     }
 }

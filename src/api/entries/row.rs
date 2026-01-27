@@ -3,69 +3,80 @@ use anyhow::{Result, bail};
 use crate::api::entries::{GridEntry, Row, RowType, RowWrapper};
 
 impl GridEntry {
+    pub fn info_maybe_removed(&self) -> Result<(&Row, bool)> {
+        extract_one_with_type(&self.position1, RowType::Info)
+    }
+
+    pub fn info(&self) -> Result<&Row> {
+        ensure_not_removed(self.info_maybe_removed()?)
+    }
+
     pub fn subject_maybe_removed(&self) -> Result<(&Row, bool)> {
-        maybe_removed(extract_one(&self.position1)?).and_then(assert_type(RowType::Subject))
+        extract_one_with_type(&self.position1, RowType::Subject)
     }
 
     pub fn subject(&self) -> Result<&Row> {
-        not_removed(self.subject_maybe_removed()?)
+        ensure_not_removed(self.subject_maybe_removed()?)
     }
 
     pub fn teacher_maybe_removed(&self) -> Result<(&Row, bool)> {
-        maybe_removed(extract_one(&self.position2)?).and_then(assert_type(RowType::Teacher))
+        extract_one_with_type(&self.position2, RowType::Teacher)
     }
 
     pub fn teacher(&self) -> Result<&Row> {
-        not_removed(self.teacher_maybe_removed()?)
+        ensure_not_removed(self.teacher_maybe_removed()?)
     }
 
     pub fn room_maybe_removed(&self) -> Result<(&Row, bool)> {
-        maybe_removed(extract_one(&self.position3)?).and_then(assert_type(RowType::Room))
+        extract_one_with_type(&self.position3, RowType::Room)
     }
 
     pub fn room(&self) -> Result<&Row> {
-        not_removed(self.room_maybe_removed()?)
+        ensure_not_removed(self.room_maybe_removed()?)
     }
 }
 
 fn extract_one(position_n: &[RowWrapper]) -> Result<&RowWrapper> {
-    if position_n.is_empty() {
-        bail!("Row is empty");
+    match position_n.len() {
+        0 => bail!("Row is empty"),
+        1 => Ok(&position_n[0]),
+        n => bail!("Row has {n} elements (expected exactly one)"),
     }
-    let n = position_n.len();
-    if n > 1 {
-        bail!("Row has {n} elements (more than one)");
-    }
-    Ok(&position_n[0])
 }
 
-fn maybe_removed(row_wrapper: &RowWrapper) -> Result<(&Row, bool)> {
-    if let Some(cur) = &row_wrapper.current {
-        Ok((cur, false))
-    } else if let Some(rem) = &row_wrapper.removed {
-        Ok((rem, false))
+fn extract_row_with_status(row_wrapper: &RowWrapper) -> Result<(&Row, bool)> {
+    if let Some(current) = &row_wrapper.current {
+        Ok((current, false))
+    } else if let Some(removed) = &row_wrapper.removed {
+        Ok((removed, true)) // Fixed: should be true when removed
     } else {
-        bail!("RowWrapper neither has current nor removed Row");
+        bail!("RowWrapper has neither current nor removed Row");
     }
 }
 
-fn not_removed(tuple: (&Row, bool)) -> Result<&Row> {
-    let (subject, is_removed) = tuple;
+fn ensure_not_removed((row, is_removed): (&Row, bool)) -> Result<&Row> {
     if is_removed {
-        bail!("Subject was removed");
+        bail!("Row was removed");
     }
-    Ok(subject)
+    Ok(row)
 }
 
-// this is the dumbest function i've ever written xd
-fn assert_type(ty: RowType) -> impl FnOnce((&Row, bool)) -> Result<(&Row, bool)> {
-    move |tuple: (&Row, bool)| {
-        let rty = tuple.0.row_type;
-        if rty != ty {
-            bail!("Expected row type {ty:?} but got {rty:?}")
-        }
-        Ok(tuple)
+fn assert_row_type(
+    (row, is_removed): (&Row, bool),
+    expected_type: RowType,
+) -> Result<(&Row, bool)> {
+    if row.row_type != expected_type {
+        bail!(
+            "Expected row type {:?} but got {:?}",
+            expected_type,
+            row.row_type
+        );
     }
+    Ok((row, is_removed))
 }
 
-// TODO:  this function doesnt work because it has to use `removed` otherwise
+fn extract_one_with_type(position: &[RowWrapper], expected_type: RowType) -> Result<(&Row, bool)> {
+    let wrapper = extract_one(position)?;
+    let (row, is_removed) = extract_row_with_status(wrapper)?;
+    assert_row_type((row, is_removed), expected_type)
+}
