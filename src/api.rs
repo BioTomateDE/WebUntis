@@ -55,7 +55,8 @@ impl ApiClient {
 #[serde(rename_all = "camelCase")]
 struct ErrorResponse {
     error_message: Option<String>,
-    validation_errors: Vec<ValidationError>,
+    validation_errors: Option<Vec<ValidationError>>,
+    error_code: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -75,18 +76,39 @@ fn handle_response(response: Response) -> Result<String> {
     }
 
     // Request was not successful
-    let message: String = if let Ok(json) = serde_json::from_str::<ErrorResponse>(&text) {
-        json.error_message.unwrap_or_else(|| {
-            json.validation_errors
-                .into_iter()
-                .map(|x| x.error_message)
-                .collect::<Vec<_>>() // itertools is more efficient tbh
-                .join(" | ")
-        })
-    } else {
-        // The request was so trash that serde could not even parse the json response
-        text
+    let message: String = match serde_json::from_str::<ErrorResponse>(&text) {
+        Ok(json) => extract_error(json),
+        Err(err) => {
+            eprintln!("[WARN] Could not parse error json response: {err}");
+            text
+        }
     };
 
     bail!("Request failed with status {status}: {message}");
+}
+
+fn extract_error(err: ErrorResponse) -> String {
+    if let Some(msg) = err.error_message
+        && !msg.is_empty()
+    {
+        return msg;
+    }
+
+    if let Some(errors) = err.validation_errors
+        && !errors.is_empty()
+    {
+        return errors
+            .into_iter()
+            .map(|x| x.error_message)
+            .collect::<Vec<_>>() // itertools is more efficient tbh
+            .join(" | ");
+    }
+
+    if let Some(msg) = err.error_code
+        && !msg.is_empty()
+    {
+        return msg;
+    }
+
+    String::from("<unknown>")
 }
