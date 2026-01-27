@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use anyhow::{Context, Result, bail};
 use chrono_tz::Tz;
 use reqwest::blocking::{Client, Response};
@@ -9,8 +7,6 @@ use serde::de::DeserializeOwned;
 
 mod entries;
 mod login;
-
-pub use login::login;
 
 use crate::json_util::improve_json_error;
 
@@ -22,34 +18,6 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
-    /// Create a new authorized Untis client that belongs to a specific student account.
-    ///
-    /// # Params
-    /// * `token`: base64 encoded string (`-_` specials, `.` for separator).
-    /// * `school`: lowercase school name (ascii only).
-    ///   this determines the `webuntis.com` subdomainn.
-    ///
-    /// # Errors
-    /// This function fails if the token or school name are malformed.
-    pub fn new(http_client: Client, token: String, school: &str) -> Result<Self> {
-        const TOKEN_CHARSET: &[u8; 65] =
-            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.";
-        const SCHOOL_CHARSET: &[u8; 27] = b"abcdefghijklmnopqrstuvwxyz-";
-
-        validate_charset("Token", &token, TOKEN_CHARSET)?;
-        validate_charset("School Name", school, SCHOOL_CHARSET)?;
-
-        let base_url = format!("https://{school}.webuntis.com/WebUntis/api/rest/view/v1/");
-        let base_url = Url::parse(&base_url)?;
-
-        Ok(Self {
-            http_client,
-            token,
-            base_url,
-            timezone: chrono_tz::UTC,
-        })
-    }
-
     /// Sends a GET request to the relative URL with the given query parameters
     fn get(&self, relative_url: &str, query: &[(&str, &str)]) -> Result<String> {
         let url: Url = self
@@ -121,19 +89,4 @@ fn handle_response(response: Response) -> Result<String> {
     };
 
     bail!("Request failed with status {status}: {message}");
-}
-
-fn validate_charset(description: &'static str, string: &str, charset: &'static [u8]) -> Result<()> {
-    if string.is_empty() {
-        bail!("{description} is empty");
-    }
-    if string.bytes().all(|b| charset.contains(&b)) {
-        return Ok(());
-    }
-    let set = string
-        .bytes()
-        .filter(|b| !charset.contains(b))
-        .map(char::from)
-        .collect::<HashSet<char>>();
-    bail!("{description} contains invalid characters: {set:?}");
 }

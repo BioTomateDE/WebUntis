@@ -1,5 +1,3 @@
-//! TODO:  documentation
-
 #![deny(unexpected_cfgs)]
 //
 #![warn(clippy::cargo)]
@@ -10,3 +8,4 @@
 
 pub mod api;
 mod json_util;
+mod validate;
