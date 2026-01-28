@@ -142,7 +142,8 @@ fn main() -> Result<()> {
 
     while sequential_errors < 5 {
         if let Err(e) = app.iteration() {
-            app.discord_client.send_error(&e.to_string());
+            let e = format!("{e:?}");
+            app.discord_client.send_error(&e);
             sequential_errors += 1;
         } else {
             sequential_errors = 0;
@@ -175,3 +176,5 @@ fn get_sleep_time(now: DateTime<Utc>) -> Duration {
     };
     Duration::from_secs(secs)
 }
+
+// TODO: refresh token after x minutes

@@ -1,8 +1,9 @@
 use std::io::Write;
 
+use chrono::Utc;
 use colored::{Color, Colorize as _};
 use env_logger::{Builder, Env};
-use log::{Level, Record};
+use log::Level;
 
 pub fn init() {
     let mut builder = Builder::new();
@@ -10,16 +11,13 @@ pub fn init() {
     builder.parse_env(get_env());
 
     builder.format(|f, record| {
+        let time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string().dimmed();
         let color = color_by_level(record.level());
         let level = level_to_str(record.level()).color(color);
-        let target = format_target(record);
+        let target = record.target().dimmed();
         let message = record.args().to_string().color(color);
 
-        if let Some(target) = target {
-            writeln!(f, "[{level} @ {target}] {message}")
-        } else {
-            writeln!(f, "[{level}] {message}")
-        }
+        writeln!(f, "{time} [{level}@{target}] {message}")
     });
 
     builder.init();
@@ -34,31 +32,6 @@ fn get_env() -> Env<'static> {
     Env::default().default_filter_or(default_level)
 }
 
-fn format_target(record: &Record) -> Option<String> {
-    let mut file = record.file()?;
-
-    if file.starts_with("src") {
-        file = &file[4..];
-    } else if let Some(pos) = file.find(".cargo") {
-        file = skip_n_slashes(&file[pos..], 4).unwrap_or(file);
-    }
-
-    let file = if cfg!(target_os = "windows") {
-        // Backslashes in paths look so ugly
-        file.replace("\\", "/")
-    } else {
-        file.to_string()
-    };
-
-    let target = if let Some(line) = record.line() {
-        format!("{file}:{line}")
-    } else {
-        file
-    };
-
-    Some(target.dimmed().to_string())
-}
-
 fn color_by_level(level: Level) -> Color {
     match level {
         Level::Trace => Color::Magenta,
@@ -71,23 +44,10 @@ fn color_by_level(level: Level) -> Color {
 
 fn level_to_str(level: Level) -> &'static str {
     match level {
-        Level::Trace => "TRACE",
-        Level::Debug => "DEBUG",
-        Level::Info => "INFO",
-        Level::Warn => "WARN",
-        Level::Error => "ERROR",
+        Level::Trace => "T",
+        Level::Debug => "D",
+        Level::Info => "I",
+        Level::Warn => "W",
+        Level::Error => "E",
     }
-}
-
-fn skip_n_slashes(s: &str, n: usize) -> Option<&str> {
-    let mut count = 0;
-    for (i, ch) in s.char_indices() {
-        if ch == '/' {
-            count += 1;
-            if count == n {
-                return Some(&s[i + 1..]);
-            }
-        }
-    }
-    None
 }
