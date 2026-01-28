@@ -77,7 +77,7 @@ fn handle_response(response: Response) -> Result<String> {
     let message: String = match serde_json::from_str::<ErrorResponse>(&text) {
         Ok(json) => extract_error(json),
         Err(err) => {
-            eprintln!("[WARN] Could not parse error json response: {err}");
+            log::warn!("Could not parse error json response: {err}");
             text
         }
     };

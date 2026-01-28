@@ -67,19 +67,20 @@ impl DiscordClient {
     }
 
     pub fn send_error(&self, err_message: &str) {
-        eprintln!("[ERROR] {err_message}");
+        log::error!("{err_message}");
 
         let title = "Internal Error";
         let color = Color::new(228, 24, 17);
         if let Err(e) = self.send_embed(title, err_message, color, vec![]) {
-            eprintln!("[WARN] Sending error message to webhook failed: {e}");
+            log::error!("Sending error message to webhook failed: {e}");
         }
     }
 
     pub fn lesson_modification(&self, info: &LessonInfo, title: &str, content: &str) -> Result<()> {
-        println!(
+        log::info!(
             "Sending lesson modification regarding {} at {}",
-            info.subject, info.datetime,
+            info.subject,
+            info.datetime,
         );
 
         let time = info.datetime.time();

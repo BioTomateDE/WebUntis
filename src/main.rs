@@ -1,3 +1,5 @@
+mod logging;
+
 use std::{iter::zip, thread::sleep, time::Duration};
 
 use anyhow::{Context, Result, bail};
@@ -68,7 +70,7 @@ impl App {
     }
 
     fn iteration(&mut self) -> Result<()> {
-        println!("Iteration");
+        log::debug!("Iteration");
         let now: DateTime<Utc> = Utc::now();
         let date: NaiveDate = get_relevant_date(now.with_timezone(&self.timezone));
         let day: Day = self
@@ -86,7 +88,7 @@ impl App {
         // If it's a different day now, invalidate the "previous day" and rerun.
         if self.prev_date != date {
             self.prev_lessons = None;
-            println!("Another day, another victory for the OGs.");
+            log::info!("Another day, another victory for the OGs.");
             return Ok(());
         }
 
@@ -119,15 +121,16 @@ impl App {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    logging::init();
 
     let discord_client = DiscordClient::new(args.discord_webhook_url)
         .context("Could not create Discord Webhook Client")?;
 
-    println!("Logging into Untis...");
+    log::info!("Logging into Untis...");
     let untis_client = UntisClient::login(&args.school, &args.username, &args.password)
         .context("Could not log into Untis")?;
 
-    println!("Initialization succeeded!");
+    log::info!("Initialization succeeded!");
     let mut app = App::new(
         discord_client,
         untis_client,
