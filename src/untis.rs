@@ -5,19 +5,19 @@ use reqwest::{StatusCode, Url};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
-mod entries;
+pub mod entries;
 mod login;
 
 use crate::json_util::improve_json_error;
 
-pub struct ApiClient {
+pub struct UntisClient {
     http_client: Client,
     token: String,
     base_url: Url,
     timezone: Tz,
 }
 
-impl ApiClient {
+impl UntisClient {
     /// Sends a GET request to the relative URL with the given query parameters
     fn get(&self, relative_url: &str, query: &[(&str, &str)]) -> Result<String> {
         let url: Url = self

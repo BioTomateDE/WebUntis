@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 
-use crate::api::entries::{GridEntry, Row, RowType, RowWrapper};
+use crate::untis::entries::{GridEntry, Row, RowType, RowWrapper};
 
 impl GridEntry {
     pub fn info_maybe_removed(&self) -> Result<(&Row, bool)> {

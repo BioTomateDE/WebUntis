@@ -1,13 +1,15 @@
 mod row;
 
+use std::fmt;
+
 use anyhow::{Result, bail};
 use chrono::{DateTime, Days, NaiveDate, NaiveDateTime, Timelike, Utc};
 use chrono_tz::Tz;
 use serde::{Deserialize, Deserializer};
 use serde_json::Value as JsonValue;
 
-use crate::api::ApiClient;
 use crate::json_util::{parse_datetime, parse_string, parse_vec};
+use crate::untis::UntisClient;
 
 // The format version has a custom deserializer to catch errors early in case of format update.
 const FORMAT_VERSION: i32 = 19;
@@ -63,8 +65,7 @@ pub struct GridEntry {
     #[serde(rename = "type")]
     pub entry_type: EntryType,
 
-    /// Unstable
-    pub status_detail: JsonValue,
+    pub status: Status,
 
     #[serde(deserialize_with = "parse_string")]
     pub notes_all: String,
@@ -101,7 +102,7 @@ pub struct RowWrapper {
 #[serde(rename_all = "camelCase")]
 pub struct Row {
     #[serde(rename = "type")]
-    #[expect(clippy::struct_field_names)]
+    #[allow(clippy::struct_field_names)]
     pub row_type: RowType,
 
     pub status: Status,
@@ -150,6 +151,21 @@ impl Status {
     }
 }
 
+impl fmt::Display for Status {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let string = match self {
+            Self::NoData => "No Data",
+            Self::NotAllowed => "Not Allowed",
+            Self::Regular => "Regular",
+            Self::Added => "Added",
+            Self::Changed => "Changed",
+            Self::Removed => "Removed",
+            Self::Cancelled => "Cancelled",
+        };
+        f.write_str(string)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EntryTextType {
@@ -166,7 +182,7 @@ pub enum RowType {
     Info,
 }
 
-impl ApiClient {
+impl UntisClient {
     /// Fetch timetable entries from the Untis API between the given dates.
     ///
     /// The range is inclusive on start and end.
@@ -206,9 +222,6 @@ impl ApiClient {
             for entry in &day.grid_entries {
                 if entry.entry_type != EntryType::NormalTeachingPeriod {
                     println!("Entry {} - {:?}", entry.duration.start, entry.entry_type);
-                }
-                if !entry.status_detail.is_null() {
-                    dbg!(&entry.status_detail);
                 }
                 if entry.position1.is_empty()
                     || entry.position2.is_empty()

@@ -7,15 +7,19 @@ pub fn school(school_name: &str) -> Result<()> {
     validate_charset("School Name", school_name, CHARS)
 }
 
-pub fn token(token: &str) -> Result<()> {
-    const CHARS: &[u8; 65] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.";
+pub fn untis_token(token: &str) -> Result<()> {
     let mut parts = token.split('.');
     for _ in 0..3 {
         let part: &str = parts.next().context("Token has too few parts")?;
-        validate_charset("Token", part, CHARS)?;
+        generic_token(part)?;
     }
     ensure!(parts.next().is_none(), "Token has too many parts");
     Ok(())
+}
+
+pub fn generic_token(token: &str) -> Result<()> {
+    const CHARS: &[u8; 65] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.";
+    validate_charset("Token", token, CHARS)
 }
 
 fn validate_charset(description: &'static str, string: &str, charset: &'static [u8]) -> Result<()> {

@@ -8,7 +8,7 @@ use reqwest::{
 };
 use serde::Serialize;
 
-use crate::{api::ApiClient, validate};
+use crate::{untis::UntisClient, validate};
 
 use super::handle_response;
 
@@ -18,7 +18,7 @@ struct AuthRequest<'a> {
     j_password: &'a str,
 }
 
-impl ApiClient {
+impl UntisClient {
     /// Try to log into the Untis API as a student, acquiring a token used in the [`ApiClient`].
     ///
     /// # Errors
@@ -68,7 +68,7 @@ impl ApiClient {
 
         let token: String =
             handle_response(resp).context("Bad response for token generation request")?;
-        validate::token(&token)?;
+        validate::untis_token(&token)?;
 
         let api_client = Self {
             http_client: client,
