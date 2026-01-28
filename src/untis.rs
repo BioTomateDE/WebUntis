@@ -1,5 +1,4 @@
 use anyhow::{Context, Result, bail};
-use chrono_tz::Tz;
 use reqwest::blocking::{Client, Response};
 use reqwest::{StatusCode, Url};
 use serde::Deserialize;
@@ -14,7 +13,6 @@ pub struct UntisClient {
     http_client: Client,
     token: String,
     base_url: Url,
-    timezone: Tz,
 }
 
 impl UntisClient {

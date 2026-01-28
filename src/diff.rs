@@ -6,10 +6,10 @@ pub fn send_potential_diffs(
     discord: &DiscordClient,
     old: &LessonInfo,
     new: &LessonInfo,
-) -> Result<()> {
+) -> Result<bool> {
     // Cover most common case first
     if old == new {
-        return Ok(());
+        return Ok(false);
     }
 
     if old.status != new.status {
@@ -57,5 +57,5 @@ pub fn send_potential_diffs(
         discord.lesson_modification(new, "Notes Changed", "")?;
     }
 
-    Ok(())
+    Ok(true)
 }

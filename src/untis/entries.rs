@@ -2,9 +2,8 @@ mod row;
 
 use std::fmt;
 
-use anyhow::{Result, bail};
-use chrono::{DateTime, Days, NaiveDate, NaiveDateTime, Timelike, Utc};
-use chrono_tz::Tz;
+use anyhow::{Context, Result, bail};
+use chrono::{NaiveDate, NaiveDateTime};
 use serde::{Deserialize, Deserializer};
 use serde_json::Value as JsonValue;
 
@@ -213,50 +212,13 @@ impl UntisClient {
             bail!("API returned errors: {:?}", entries.errors);
         }
 
-        // Debugging stuff
-
-        for day in &entries.days {
-            if !day.status.is_normal() {
-                println!("Day {} - {:?}", day.date, day.status);
-            }
-            for entry in &day.grid_entries {
-                if entry.entry_type != EntryType::NormalTeachingPeriod {
-                    println!("Entry {} - {:?}", entry.duration.start, entry.entry_type);
-                }
-                if entry.position1.is_empty()
-                    || entry.position2.is_empty()
-                    || entry.position3.is_empty()
-                {
-                    //dbg!(&entry.name);
-                }
-                dbg!(&entry.subject()?.row_type);
-            }
-        }
-
         Ok(entries.days)
     }
 
-    /// Fetch the "next relevant" timetable day.
-    ///
-    /// It will always fetch exactly one day.
-    /// The date is either the current date or tomorrow, depending on the time of day.
-    /// Between 00:00 and 18:00 UTC, it fetches the current day.
-    /// Between 18:00 and 24:00 UTC, it fetches tomorrow, as the current day is deemed "irrelevant".
-    ///
-    /// # Errors
-    /// For errors regarding the actual fetch, see [`Self::fetch_entries`].
-    /// Additionally, this function will return an error if the API returns
-    /// zero or more than one entry for whatever reason.
-    #[expect(clippy::missing_panics_doc)]
-    pub fn fetch_relevant_entry(&self, timetable_id: i32) -> Result<Day> {
-        let now: DateTime<Tz> = Utc::now().with_timezone(&self.timezone);
-        let mut date: NaiveDate = now.date_naive();
-
-        if now.hour() >= 18 {
-            // After 18:00, show changes for tomorrow instead of today.
-            date = date.checked_add_days(Days::new(1)).unwrap();
-        }
-        let days = self.fetch_entries(date, date, timetable_id)?;
+    pub fn fetch_single_entry(&self, date: NaiveDate, timetable_id: i32) -> Result<Day> {
+        let days: Vec<Day> = self
+            .fetch_entries(date, date, timetable_id)
+            .context("Could not fetch timetable entry")?;
 
         match days.as_slice() {
             [day] => Ok(day.clone()),

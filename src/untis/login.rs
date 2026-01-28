@@ -74,7 +74,6 @@ impl UntisClient {
             http_client: client,
             token,
             base_url: base_url.join("api/rest/view/v1/")?,
-            timezone: chrono_tz::UTC,
         };
 
         Ok(api_client)

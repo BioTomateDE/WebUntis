@@ -66,18 +66,22 @@ impl DiscordClient {
         Ok(())
     }
 
-    pub fn error(&self, error: impl std::error::Error) {
-        let message = error.to_string();
-        eprintln!("[ERROR] {message}");
+    pub fn send_error(&self, err_message: &str) {
+        eprintln!("[ERROR] {err_message}");
 
         let title = "Internal Error";
         let color = Color::new(228, 24, 17);
-        if let Err(e) = self.send_embed(title, &message, color, vec![]) {
+        if let Err(e) = self.send_embed(title, err_message, color, vec![]) {
             eprintln!("[WARN] Sending error message to webhook failed: {e}");
         }
     }
 
     pub fn lesson_modification(&self, info: &LessonInfo, title: &str, content: &str) -> Result<()> {
+        println!(
+            "Sending lesson modification regarding {} at {}",
+            info.subject, info.datetime,
+        );
+
         let time = info.datetime.time();
         let time = format!("{:02}:{:02}", time.hour(), time.minute());
 
@@ -132,7 +136,7 @@ fn validate_url(url: &Url) -> Result<()> {
 
 fn assert_url_part(label: &'static str, expected: &'static str, actual: &str) -> Result<()> {
     if expected != actual {
-        bail!("URL {label} is {actual} instead of {expected}");
+        bail!("URL {label} is {actual:?} instead of {expected:?}");
     }
     Ok(())
 }
