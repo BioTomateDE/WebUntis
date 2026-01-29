@@ -1,6 +1,10 @@
 mod logging;
 
-use std::{iter::zip, thread::sleep, time::Duration};
+use std::{
+    iter::zip,
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Days, NaiveDate, NaiveTime, Timelike, Utc};
@@ -8,7 +12,7 @@ use chrono_tz::Tz;
 use clap::Parser;
 use reqwest::Url;
 use webuntis::{
-    LessonInfo,
+    Credentials, LessonInfo,
     discord::DiscordClient,
     extract_all_lessons, send_potential_diffs,
     untis::{UntisClient, entries::Day},
@@ -42,9 +46,14 @@ struct Args {
     timezone: Tz,
 }
 
+/// Allow for some buffer time
+const MAX_LOGIN_TIME: Duration = Duration::from_mins(14);
+
 struct App {
     discord_client: DiscordClient,
     untis_client: UntisClient,
+    credentials: Credentials,
+    last_login: Instant,
     timetable_id: i32,
     timezone: Tz,
     prev_date: NaiveDate,
@@ -58,19 +67,37 @@ impl App {
         untis_client: UntisClient,
         timetable_id: i32,
         timezone: Tz,
+        credentials: Credentials,
     ) -> Self {
         Self {
             discord_client,
             untis_client,
             timetable_id,
-            timezone,
+            last_login: Instant::now(),
             prev_date: NaiveDate::default(),
             prev_lessons: None,
+            credentials,
+            timezone,
         }
+    }
+
+    fn ensure_login_validity(&mut self) -> Result<()> {
+        let now = Instant::now();
+        if now - self.last_login < MAX_LOGIN_TIME {
+            return Ok(());
+        }
+
+        log::info!("Max login time {MAX_LOGIN_TIME:?} expired; creating new session.");
+        self.last_login = now;
+        self.untis_client =
+            UntisClient::login(&self.credentials).context("Could not log back into Untis")?;
+        Ok(())
     }
 
     fn iteration(&mut self) -> Result<()> {
         log::debug!("Iteration");
+        self.ensure_login_validity()?;
+
         let now: DateTime<Utc> = Utc::now();
         let date: NaiveDate = get_relevant_date(now.with_timezone(&self.timezone));
         let day: Day = self
@@ -127,16 +154,22 @@ fn main() -> Result<()> {
         .context("Could not create Discord Webhook Client")?;
 
     log::info!("Logging into Untis...");
-    let untis_client = UntisClient::login(&args.school, &args.username, &args.password)
-        .context("Could not log into Untis")?;
+    let credentials = Credentials {
+        school: args.school,
+        username: args.username,
+        password: args.password,
+    };
+    let untis_client = UntisClient::login(&credentials).context("Could not log into Untis")?;
 
-    log::info!("Initialization succeeded!");
     let mut app = App::new(
         discord_client,
         untis_client,
         args.timetable_id,
         args.timezone,
+        credentials,
     );
+
+    log::info!("Initialization succeeded!");
 
     let mut sequential_errors = 0;
 

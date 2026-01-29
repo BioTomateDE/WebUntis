@@ -5,7 +5,7 @@ use reqwest::{
 };
 use serde::Serialize;
 
-use crate::{untis::UntisClient, validate};
+use crate::{Credentials, untis::UntisClient, validate};
 
 use super::handle_response;
 
@@ -26,7 +26,12 @@ impl UntisClient {
     /// * Response with non-success status code (not 2xx)
     ///   > If your credentials are incorrect, it will return a HTTP redirect (302).
     /// * Invalid token
-    pub fn login(school: &str, username: &str, password: &str) -> Result<Self> {
+    pub fn login(credentials: &Credentials) -> Result<Self> {
+        let Credentials {
+            school,
+            username,
+            password,
+        } = credentials;
         validate::school(school)?;
 
         let base_url: String = format!("https://{school}.webuntis.com/WebUntis/");

@@ -22,6 +22,13 @@ pub use diff::send_potential_diffs;
 pub use extract::{extract_all_lessons, extract_lesson_info};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Credentials {
+    pub school: String,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LessonInfo {
     pub status: Status,
     pub datetime: NaiveDateTime,
