@@ -1,10 +1,7 @@
-use std::sync::Arc;
-
 use anyhow::{Context, Result};
 use reqwest::{
     Url,
     blocking::{Client, Response},
-    cookie::Jar,
 };
 use serde::Serialize;
 
@@ -36,12 +33,9 @@ impl UntisClient {
         let base_url =
             Url::parse(&base_url).with_context(|| format!("Could not parse URL {base_url:?}"))?;
 
-        let jar = Arc::new(Jar::default());
-
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .cookie_store(true)
-            .cookie_provider(Arc::clone(&jar))
             .build()?;
 
         let url = base_url.join("j_spring_security_check")?;
